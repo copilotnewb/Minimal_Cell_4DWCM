@@ -263,7 +263,7 @@ def saveCountsAndFluxes(time, sim_properties, odeResults, model, solver):
             new_results.append(count)
             
         # Create an array to save the average value of the metabolic fluxes over the second
-        fluxes = np.empty((0, len(model.getRxnList())), dtype=float)
+        fluxes = np.empty((odeResults.shape[0], len(model.getRxnList())), dtype=float)
         
         print(odeResults.shape)
 
@@ -271,7 +271,7 @@ def saveCountsAndFluxes(time, sim_properties, odeResults, model, solver):
 
             flux_transient = solver.calcFlux(0, odeResults[i,:]) # List
 
-            fluxes = np.append(fluxes, [np.asarray(flux_transient)], axis=0)
+            fluxes[i] = flux_transient
 
 #         resFinal = odeResults[-1,:]
 

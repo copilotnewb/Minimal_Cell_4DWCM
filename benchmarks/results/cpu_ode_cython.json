@@ -1,0 +1,48 @@
+{
+  "python": "3.12.14",
+  "numpy": "2.3.5",
+  "scipy": "1.17.0",
+  "libsbml": "5.21.2",
+  "baseline_main_ref": "08f5f20",
+  "baseline_odecell_ref": "b19413f",
+  "backend": "cython",
+  "metabolites": 149,
+  "reactions": 175,
+  "samples_per_integration": 100,
+  "repeats": 3,
+  "cold_after_model_seconds": 0.8720137390000673,
+  "before_median": {
+    "model_seconds": 0.8110774300002959,
+    "solver_seconds": 0.04255255500038402,
+    "integration_seconds": 3.1503406739998354,
+    "total_seconds": 3.972063215000162
+  },
+  "after_median": {
+    "model_seconds": 0.42262854500040703,
+    "solver_seconds": 0.05446427000015319,
+    "integration_seconds": 0.23035931300000811,
+    "total_seconds": 0.7084958020004706
+  },
+  "trajectories_and_fluxes_bit_identical": true,
+  "generated_callbacks_identical": false,
+  "state_comparison_rtol": 0.000001,
+  "state_comparison_atol": 1e-12,
+  "scalar_comparison_rtol": 1e-12,
+  "scalar_comparison_atol": 1e-14,
+  "max_state_absolute_error": 0,
+  "max_state_error_per_tolerance": 0,
+  "max_trajectory_flux_absolute_error": 0,
+  "max_scalar_rhs_absolute_error": 0,
+  "max_scalar_flux_absolute_error": 0,
+  "compiler_invocations": 0,
+  "changed_parameters_observed": true,
+  "total_speedup": 5.606332745776133,
+  "first_after_solver_seconds": 0.1582630880002398,
+  "first_solver_used_disk_cache": true,
+  "uncached_build_measurement": {
+    "model_seconds": 1.0564502480001465,
+    "solver_seconds": 72.47390045500015,
+    "compiler_invocations": 1,
+    "note": "Earlier uncached run of the same generated model/ABI; the current validation run above reused that compiled binary."
+  }
+}

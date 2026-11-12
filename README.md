@@ -2,17 +2,27 @@
 
 This repository contains the 4D whole-cell model for the genetically minimal cell, JCVI-syn3A. Below, you will find instructions on required programs that need to be installed, instructions on how to run the model, and descriptions of individual simulation files.
 
+## Performance branch and one-GPU testing
+
+The coordinated `perf/single-gpu-16gb` branches of this fork, Lattice Microbes,
+odecell, and btree_chromo_gpu include sparse GPU reaction storage, faster
+lattice communication and DNA loop searches, and an optional compiled
+metabolic backend. See [the performance and rebuild guide](docs/PERFORMANCE.md)
+for measured CPU results, validation limits, single-GPU commands, and the
+timing/VRAM recorder. A full GPU run and a 16 GB fit still require testing on
+the target machine.
+
 ## Required Programs
 
-- [Lattice Microbes](https://github.com/Luthey-Schulten-Lab/Lattice_Microbes) - [https://github.com/Luthey-Schulten-Lab/Lattice_Microbes](https://github.com/Luthey-Schulten-Lab/Lattice_Microbes)
-- [odecell](https://github.com/Luthey-Schulten-Lab/odecell) - [https://github.com/Luthey-Schulten-Lab/odecell](https://github.com/Luthey-Schulten-Lab/odecell) (Install this in the same conda environment as Lattice Microbes AFTER building Lattice Microbes)
-- [btree_chromo](https://github.com/Luthey-Schulten-Lab/btree_chromo_gpu) - [https://github.com/Luthey-Schulten-Lab/btree_chromo_gpu](https://github.com/Luthey-Schulten-Lab/btree_chromo_gpu) (Requires installation with Kokkos enabled version of LAMMPS)
-- [sc_chain_generation](https://github.com/Luthey-Schulten-Lab/sc_chain_generation) - [https://github.com/Luthey-Schulten-Lab/sc_chain_generation](https://github.com/Luthey-Schulten-Lab/sc_chain_generation)
-- [FreeDTS](https://github.com/weria-pezeshkian/FreeDTS) - [https://github.com/weria-pezeshkian/FreeDTS](https://github.com/weria-pezeshkian/FreeDTS) (OPTIONAL)
+- [Lattice Microbes](https://github.com/copilotnewb/Lattice_Microbes) — use branch `perf/single-gpu-16gb` and rebuild the native library and Python bindings.
+- [odecell](https://github.com/copilotnewb/odecell) — use branch `perf/single-gpu-16gb`; install in the same conda environment as Lattice Microbes after building LM.
+- [btree_chromo_gpu](https://github.com/copilotnewb/btree_chromo_gpu) — use branch `perf/single-gpu-16gb`; requires the modified Kokkos-enabled LAMMPS installation.
+- [sc_chain_generation](https://github.com/copilotnewb/sc_chain_generation) — existing default branch; unchanged by this performance work.
+- [FreeDTS](https://github.com/copilotnewb/FreeDTS) — optional; existing default branch, unchanged by this performance work.
 
 ## Running the Model
 
-The model here is runnbale as-is and does not reuire its own installation. Once you have installed the required programs listed above, before running the model, you must activate the conda environment in which you built Lattice Microbes:
+The Python model runs directly from this checkout. After installing and rebuilding the required dependencies, activate the conda environment in which you built Lattice Microbes:
 
 ```
 conda activate envName
@@ -32,15 +42,20 @@ The python file ```Whole_Cell_Minimal_Cell.py``` is the main executable for the 
 |------------|-----------|-------------|
 | --outputDir | -od | Name of directory that will be created to store trajectory files. DO NOT INCLUDE A '.' |
 | --simTime | -t | Amount of biological time to be simulated in units of seconds. |
-| --cudeDevices | -cd | Integer index of the GPU to use for the Lattice Microbes RDME solver. |
-| --dnaSoftwareDirectory | -dsd | Directory containing the ```btree_chromo/``` and ```sc_chain_generation/``` directories. |
+| --cudaDevices | -cd | Integer index within the visible GPU list for RDME and CME; also the default DNA GPU. |
+| --dnaSoftwareDirectory | -dsd | Directory containing `btree_chromo_gpu/` (preferred, or legacy `btree_chromo/`) and `sc_chain_generation/`. |
 | --dnaRngSeed | -drs | Integer RNG seed that will be used for the chromosome programs. |
 | --workingDirectory | -wd | Directory where the simulation is being run in. Defaults to current directory, no input is needed. Only necessary to change on clusters. |
+| --dnaCudaDevice | | Optional DNA GPU ordinal within the parent's visible device list. |
+| --dnaMode | | `overlap` (default) or `serial`; serial waits for DNA but retains RDME device allocations. |
+| --dnaTimeout | | Seconds to wait for a DNA worker at synchronization (default 300). |
+| --odeBackend | | `python` (default) or opt-in `cython` callbacks. |
+| --odeCacheDirectory | | Optional shared compiled ODE cache; default is the output directory's `ode_cache/`. |
 
 Example executable:
 
 ```
-python Whole_Cell_Minimal_Cell.py -od replicate1 -t 1200 -cd 1 -drs 13 -dsd /home/zane/Software/
+python Whole_Cell_Minimal_Cell.py -od replicate1 -t 1200 -cd 0 -drs 13 -dsd /absolute/path/to/software/
 ```
 
 ## Restarting a simulation

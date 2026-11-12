@@ -5,6 +5,8 @@ Define all reactions that are integrated in a system of ODEs
 """
 
 from collections import defaultdict, OrderedDict
+from functools import lru_cache
+import os
 
 import odecell
 
@@ -15,6 +17,35 @@ import pandas as pd
 import numpy as np
 
 import libsbml
+
+
+def _input_file_key(path):
+    """Identify one version of an input file, including replacement in place."""
+    path = os.path.realpath(path)
+    stat = os.stat(path)
+    return path, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size
+
+
+@lru_cache(maxsize=16)
+def _cached_excel_sheet(file_key, sheet_name):
+    return pd.read_excel(file_key[0], sheet_name=sheet_name)
+
+
+def _read_model_sheet(path, sheet_name):
+    # Every model still receives fresh counts, enzyme levels and volume below.
+    # Only the static input table is cached; callers cannot mutate its copy.
+    return _cached_excel_sheet(_input_file_key(path), sheet_name).copy(deep=True)
+
+
+@lru_cache(maxsize=2)
+def _cached_sbml_document(file_key):
+    return libsbml.readSBMLFromFile(file_key[0])
+
+
+def _read_sbml_file(path):
+    # SBML documents are mutable. Give each model its own document so edits to
+    # a returned model cannot contaminate subsequent metabolic updates.
+    return _cached_sbml_document(_input_file_key(path)).clone()
 
 ### Constants
 NA = 6.022e23 # Avogadro's
@@ -166,11 +197,11 @@ def defineRandomBindingRxns(model, sim_properties):
     
     params_file = sim_properties['head_directory'] + 'input_data/kinetic_params.xlsx'
     
-    central_params = pd.read_excel(params_file, sheet_name='Central')
-    nucleotide_params = pd.read_excel(params_file, sheet_name='Nucleotide')
-    lipid_params = pd.read_excel(params_file, sheet_name='Lipid')
-    cofactor_params = pd.read_excel(params_file, sheet_name='Cofactor')
-    transport_params = pd.read_excel(params_file, sheet_name='Transport')
+    central_params = _read_model_sheet(params_file, sheet_name='Central')
+    nucleotide_params = _read_model_sheet(params_file, sheet_name='Nucleotide')
+    lipid_params = _read_model_sheet(params_file, sheet_name='Lipid')
+    cofactor_params = _read_model_sheet(params_file, sheet_name='Cofactor')
+    transport_params = _read_model_sheet(params_file, sheet_name='Transport')
     
     metabolism_params = pd.concat([central_params, nucleotide_params, lipid_params, cofactor_params, transport_params], ignore_index=True) 
     
@@ -182,7 +213,7 @@ def defineRandomBindingRxns(model, sim_properties):
             
     sbmlFile = sim_properties['head_directory'] + "input_data/Syn3A_updated.xml"
 
-    docSBML = libsbml.readSBMLFromFile(sbmlFile)
+    docSBML = _read_sbml_file(sbmlFile)
     modelSBML = docSBML.getModel()
 
     speciesNames = [spc.name for spc in modelSBML.getListOfSpecies()]
@@ -335,7 +366,7 @@ def defineOtherRandomBindingReactions(model, sim_properties):
     
     params_file = sim_properties['head_directory'] + 'input_data/kinetic_params.xlsx'
     
-    RXNS_params = pd.read_excel(params_file, sheet_name='Other-Random-Binding')
+    RXNS_params = _read_model_sheet(params_file, sheet_name='Other-Random-Binding')
     
     reaction_list = []
 
@@ -492,7 +523,7 @@ def defineNonRandomBindingRxns(model, sim_properties):
     
     params_file = sim_properties['head_directory'] + 'input_data/kinetic_params.xlsx'
     
-    RXNS_params = pd.read_excel(params_file, sheet_name='Non-Random-Binding Reactions')
+    RXNS_params = _read_model_sheet(params_file, sheet_name='Non-Random-Binding Reactions')
     
     reaction_list = []
 
@@ -594,7 +625,7 @@ def addProteinMetabolites(model, sim_properties):
     
     data_file = sim_properties['head_directory'] + 'input_data/protein_metabolites.xlsx'
     
-    ptnMets = pd.read_excel(data_file, sheet_name='protein metabolites')
+    ptnMets = _read_model_sheet(data_file, sheet_name='protein metabolites')
     
     for index, row in ptnMets.iterrows():
         

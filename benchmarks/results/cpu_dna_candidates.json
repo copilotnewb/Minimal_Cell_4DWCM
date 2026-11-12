@@ -1,0 +1,16 @@
+{
+  "scope": "CPU candidate-search microbenchmark, not whole-cell or GPU speedup",
+  "baseline_ref": "fbc6f01b10a2c169e439c541f71e5b2a413fd0c9",
+  "monomers": 54338,
+  "queries": 500,
+  "max_extension": 30,
+  "repeats": 5,
+  "full_scan_median_ms": 449.307,
+  "bounded_scan_median_ms": 0.758,
+  "microbenchmark_speedup": 592.457,
+  "candidate_checksum": 97998750,
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "build_flags": "g++ -std=c++17 -O2 -g",
+  "exact_trajectory_states": 38416,
+  "randomized_candidate_cases": 18000
+}

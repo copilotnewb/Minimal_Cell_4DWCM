@@ -1,0 +1,42 @@
+{
+  "python": "3.12.14",
+  "numpy": "2.3.5",
+  "scipy": "1.17.0",
+  "libsbml": "5.21.2",
+  "baseline_main_ref": "08f5f20",
+  "baseline_odecell_ref": "b19413f",
+  "backend": "python",
+  "metabolites": 149,
+  "reactions": 175,
+  "samples_per_integration": 100,
+  "repeats": 3,
+  "cold_after_model_seconds": 0.9469110790000741,
+  "first_after_solver_seconds": 0.04436385600001813,
+  "first_solver_used_disk_cache": false,
+  "before_median": {
+    "model_seconds": 1.0325229780000882,
+    "solver_seconds": 0.05429001800030164,
+    "integration_seconds": 3.452310944999681,
+    "total_seconds": 4.528356444999645
+  },
+  "after_median": {
+    "model_seconds": 0.4201883780001481,
+    "solver_seconds": 0.02595333199997185,
+    "integration_seconds": 3.398517646000073,
+    "total_seconds": 3.8399130279999554
+  },
+  "trajectories_and_fluxes_bit_identical": true,
+  "generated_callbacks_identical": true,
+  "state_comparison_rtol": 1e-06,
+  "state_comparison_atol": 1e-12,
+  "scalar_comparison_rtol": 1e-12,
+  "scalar_comparison_atol": 1e-14,
+  "max_state_absolute_error": 0.0,
+  "max_state_error_per_tolerance": 0.0,
+  "max_trajectory_flux_absolute_error": 0.0,
+  "max_scalar_rhs_absolute_error": 0.0,
+  "max_scalar_flux_absolute_error": 0.0,
+  "compiler_invocations": 0,
+  "changed_parameters_observed": true,
+  "total_speedup": 1.1792862004893558
+}
