@@ -14,6 +14,7 @@ import ImportInitialConditions as IC
 import Integrate as integrate
 import Communicate as communicate
 import FileSaving as save
+import DnaRuntime
 
 from jLM.RegionBuilder import RegionBuilder
 from jLM.RDME import Sim as RDMESim
@@ -122,6 +123,7 @@ class MyOwnSolver:
     # if we changed the state or not and need the lattice to be copied back 
     # to the GPU before continuing.  If you do not return 1 or 2, your changes 
     # will not be reflected.
+    @DnaRuntime.cleanupOnHookError
     def hookSimulation(self, t, lattice):
         
         time = t
@@ -161,7 +163,7 @@ class MyOwnSolver:
                 
                     if (time >= self.final_simulation_time):
                         
-                        raise Exception(f"Reached end of allowed simulation time after {elapsed_hours} hours. Solver will terminate without saving.")
+                        raise DnaRuntime.SimulationTimeLimit(f"Reached end of allowed simulation time after {elapsed_hours} hours. Solver will terminate without saving.")
             
             ##### Update Chromosome Configuration and Cell Architecture #####
 
@@ -304,7 +306,8 @@ class MyOwnSolver:
 #                         if (self.cythonBool == True):
 #                             solver=integrate.setSolver(model)
 #                         else:
-                solver=integrate.noCythonSetSolver(model)
+                solver = integrate.buildSolver(model, backend=self.sim_properties.get('ode_backend', 'python'),
+                                               cache_dir=self.sim_properties.get('ode_cache_directory'))
 
                 ### Run the integrator
                 odeResults = integrate.runODE(initVals, solver, model)

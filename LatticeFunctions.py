@@ -6,6 +6,33 @@ General lattice functions
 
 import numpy as np
 
+
+def particleLocations(particles, particle_ids):
+    """Locate several species with one membership scan of the particle lattice.
+
+    Each result has the same coordinates and C-order as ``argwhere(particles ==
+    pid)``. Stable ordering matters when consumers remove/reinsert particles at
+    a site. Callers may reuse spatial coordinates after compaction, but must not
+    treat the stored word/slot coordinates as live references after a mutation.
+    """
+    particle_ids = list(dict.fromkeys(int(pid) for pid in particle_ids))
+    if not particle_ids:
+        return {}
+    locations = {pid: np.empty((0, particles.ndim), dtype=np.intp)
+                 for pid in particle_ids}
+    coordinates = np.argwhere(np.isin(particles, particle_ids))
+    if not len(coordinates):
+        return locations
+    labels = particles[tuple(coordinates.T)]
+    order = np.argsort(labels, kind='stable')
+    labels = labels[order]
+    coordinates = coordinates[order]
+    starts = np.r_[0, np.flatnonzero(labels[1:] != labels[:-1]) + 1]
+    stops = np.r_[starts[1:], len(labels)]
+    for start, stop in zip(starts, stops):
+        locations[int(labels[start])] = coordinates[start:stop]
+    return locations
+
 # From Tyler Biopolymers
 # def deleteParticle(particles, x, y, z, pid):
 #     ps = np.array([p for p_ in particles[:,z,y,x,:] for p in p_ if p != pid])

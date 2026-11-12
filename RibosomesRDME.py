@@ -35,14 +35,9 @@ def placeRibosomes(lattice, sim_properties, region_dict, ribo_site_dict, updateT
     
     plattice = lattice.getParticleLatticeView()
 
-    mvPartIdx = 2
-    
-    ribosome_centers = np.full((N_edges[0], N_edges[1], N_edges[2]), False)
-    ribosomes = np.full((N_edges[0], N_edges[1], N_edges[2]), False)
-    
-    she_coords = np.argwhere(cyto_shell==True)
-    
-    tree = spatial.KDTree(she_coords)
+    # Most hooks keep every ribosome inside the cell. Build the shell search
+    # only if relocation is actually needed, using this hook's current shape.
+    tree = None
     
     ribo_center_points = np.full((N_edges[0], N_edges[1], N_edges[2]), False)
     
@@ -91,6 +86,10 @@ def placeRibosomes(lattice, sim_properties, region_dict, ribo_site_dict, updateT
                         x_int, y_int, z_int = int(x), int(y), int(z)
 
                         if (membrane[x_int,y_int,z_int]==True) or (extracellular[x_int,y_int,z_int]==True):
+
+                            if tree is None:
+                                she_coords = np.argwhere(cyto_shell==True)
+                                tree = spatial.KDTree(she_coords)
 
                             dist, sheCoordIdx = tree.query([x_int,y_int,z_int])
 
@@ -198,100 +197,37 @@ def placeRibosomes(lattice, sim_properties, region_dict, ribo_site_dict, updateT
 
 #########################################################################################
 def updateRiboSites(lattice, ribo_site_dict, region_dict):
+    """Update the writable site view with the original region precedence.
+
+    LM exposes sites in [z, y, x] order; this is exactly the array order of
+    region masks (the old code called setSiteType(site[2], site[1], site[0])).
+    Boolean writes remove thousands of Python/SWIG calls at every hook.
     """
-    Inputs:
-    Returns:
-    Called by:
-    Description:
-    """
-    
-    for ribo_type, type_dict in ribo_site_dict.items():
-                        
-        crossID = type_dict['cross_idx']
+    sites = lattice.getSiteLatticeView()
+    for type_dict in ribo_site_dict.values():
         centerID = type_dict['center_idx']
-
-        old_centers = np.argwhere(region_dict[centerID]['shape']==True)
-
-        for site in old_centers:
-
-            if region_dict['cytoplasm']['shape'][site[0], site[1], site[2]] == True:
-
-                lattice.setSiteType(int(site[2]), int(site[1]), int(site[0]), region_dict['cytoplasm']['index'])
-
-                continue
-
-            if region_dict['outer_cytoplasm']['shape'][site[0], site[1], site[2]] == True:
-
-                lattice.setSiteType(int(site[2]), int(site[1]), int(site[0]), region_dict['outer_cytoplasm']['index'])
-
-                continue
-                
-            if region_dict['DNA']['shape'][site[0], site[1], site[2]] == True:
-
-                lattice.setSiteType(int(site[2]), int(site[1]), int(site[0]), region_dict['DNA']['index'])
-
-                continue
-
-        old_cross = np.argwhere(region_dict[crossID]['shape']==True)
-
-        for site in old_cross:
-
-            if region_dict['cytoplasm']['shape'][site[0], site[1], site[2]] == True:
-
-                lattice.setSiteType(int(site[2]), int(site[1]), int(site[0]), region_dict['cytoplasm']['index'])
-
-                continue
-
-            if region_dict['outer_cytoplasm']['shape'][site[0], site[1], site[2]] == True:
-
-                lattice.setSiteType(int(site[2]), int(site[1]), int(site[0]), region_dict['outer_cytoplasm']['index'])
-
-                continue
-                
-            if region_dict['DNA']['shape'][site[0], site[1], site[2]] == True:
-
-                lattice.setSiteType(int(site[2]), int(site[1]), int(site[0]), region_dict['DNA']['index'])
-
-                continue
-
-            if region_dict['extracellular']['shape'][site[0], site[1], site[2]] == True:
-
-                lattice.setSiteType(int(site[2]), int(site[1]), int(site[0]), region_dict['extracellular']['index'])
-
-                continue
-
+        crossID = type_dict['cross_idx']
+        for regionID, base_regions in (
+            (centerID, ('cytoplasm', 'outer_cytoplasm', 'DNA')),
+            (crossID, ('cytoplasm', 'outer_cytoplasm', 'DNA', 'extracellular')),
+        ):
+            remaining = region_dict[regionID]['shape'].copy()
+            for base in base_regions:
+                selected = remaining & region_dict[base]['shape']
+                sites[selected] = region_dict[base]['index']
+                remaining[selected] = False
         region_dict[centerID]['shape'] = type_dict['centers']
         region_dict[crossID]['shape'] = type_dict['crosses']
 
-
-    for ribo_type, type_dict in ribo_site_dict.items():
-
-        crossID = type_dict['cross_idx']
-
-        ribo_sites = np.argwhere(type_dict['crosses']==True)
-
-        for site in ribo_sites:
-
-            if (region_dict['membrane']['shape'][site[0], site[1], site[2]] == False) and (region_dict['DNA']['shape'][site[0], site[1], site[2]] == False):
-
-                lattice.setSiteType(int(site[2]), int(site[1]), int(site[0]), region_dict[crossID]['index'])
-
-
-    for ribo_type, type_dict in ribo_site_dict.items():
-
-        centerID = type_dict['center_idx']
-
-        ribo_center_sites = np.argwhere(type_dict['centers']==True)
-
-        for site in ribo_center_sites:
-
-            lattice.setSiteType(int(site[2]), int(site[1]), int(site[0]), region_dict[centerID]['index'])
-            
-    
-#     print("Updated Regions with New Ribosome Positions")
-    
+    allowed_crosses = ~(region_dict['membrane']['shape'] | region_dict['DNA']['shape'])
+    for type_dict in ribo_site_dict.values():
+        sites[type_dict['crosses'] & allowed_crosses] = region_dict[type_dict['cross_idx']]['index']
+    # All centers are applied last, including overlaps between ribosome types.
+    for type_dict in ribo_site_dict.values():
+        sites[type_dict['centers']] = region_dict[type_dict['center_idx']]['index']
+    # IntLattice exposes writable memory without invalidating CudaIntLattice's
+    # device copy. One unchanged-value setter marks it dirty for copyToGPU().
+    if sites.size:
+        lattice.setSiteType(0, 0, 0, int(sites[0, 0, 0]))
     return region_dict
 #########################################################################################
-
-
-    

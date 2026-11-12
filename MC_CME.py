@@ -20,6 +20,9 @@ import importlib
 from collections import defaultdict, OrderedDict
 
 import os
+import subprocess
+import sys
+import DnaRuntime
 
 import time as TIME
 
@@ -59,7 +62,17 @@ def runGCME(sim_properties):
     
     pythonExecutable = sim_properties['head_directory'] + 'Run_CME.py' # sim_properties['working_directory'] + 'run_CME.py'
     
-    os.system("python %s %s"% (pythonExecutable, CSIMfilename) )
+    # Keep the isolated LM process and its existing GPU RNG, but use this
+    # interpreter/environment and surface failures immediately.
+    environment = DnaRuntime.dnaEnvironment({'dna_cuda_device': sim_properties.get('rdme_cuda_device', 0)})
+    log_name = csimFolder + 'worker.log'
+    with open(log_name, 'w') as log:
+        try:
+            subprocess.run([sys.executable, pythonExecutable, CSIMfilename],
+                           env=environment, stdout=log, stderr=subprocess.STDOUT,
+                           check=True)
+        except subprocess.CalledProcessError as error:
+            raise RuntimeError('Global CME worker failed; see ' + log_name) from error
 
     return None
 #########################################################################################
@@ -127,7 +140,3 @@ def add_CME_species(csim, sim_properties):
         
     return None
 #########################################################################################
-    
-
-
-        

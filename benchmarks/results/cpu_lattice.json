@@ -1,0 +1,48 @@
+{
+  "scope": "synthetic CPU routines, not a whole-cell or GPU benchmark",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "numpy": "2.3.5",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "lattice_shape": [
+    16,
+    64,
+    64,
+    128,
+    1
+  ],
+  "occupied_slots": 100000,
+  "selected_species": 200,
+  "particle_locations": {
+    "baseline_median_seconds": 8.242211730000236,
+    "optimized_median_seconds": 0.07797153499996057,
+    "ratio": 105.70795778234204,
+    "exact_coordinates": true,
+    "baseline_samples": [
+      8.242211730000236,
+      7.850283941999805,
+      8.797424761000002
+    ],
+    "optimized_samples": [
+      0.07797153499996057,
+      0.07265279800003555,
+      0.09536945799982277
+    ]
+  },
+  "ribosome_site_updates": {
+    "baseline_median_seconds": 0.13779482599966286,
+    "optimized_median_seconds": 0.004816149999896879,
+    "ratio": 28.610991352556137,
+    "exact_sites": true,
+    "baseline_samples": [
+      0.25182636799991087,
+      0.11428707599998233,
+      0.13779482599966286
+    ],
+    "optimized_samples": [
+      0.005214738000177022,
+      0.004816149999896879,
+      0.0037128120002307696
+    ],
+    "note": "Includes equal array-copy setup; baseline setters are Python stand-ins for SWIG."
+  }
+}

@@ -9,9 +9,8 @@ import numpy as np
 
 import os
 
-import subprocess
+import DnaRuntime
 
-from subprocess import Popen, PIPE
 
 import time as timepy
 
@@ -146,7 +145,9 @@ def updateChromosomeDivision(time, lattice, sim_properties, region_dict, ribo_si
         sim_properties['last_last_DNA_step'] = lastStep
 
         sim_properties['last_DNA_step'] = timestep
-    
+
+        checkLastChromosome(sim_properties)
+
         region_dict, DNA_lattice_coords = placeNewChromosome(time, lattice, sim_properties, region_dict, ribo_site_dict)
 
         genome = remapDNA(sim_properties)
@@ -163,51 +164,9 @@ def updateChromosomeDivision(time, lattice, sim_properties, region_dict, ribo_si
 
 #########################################################################################
 def checkLastChromosome(sim_properties):
-    """
-    Inputs:
-    sim_properties - Dictionary of simulation variables and state trackers
-    
-    Returns:
-    Called by:
-    Description:
-    """
-    
-    print("Checking for configuration from previous DNA step")
-    
-    workDir = sim_properties['working_directory']+'DNA/'
-    
-    DNAfile = workDir + 'dna_monomers_{:d}.bin'.format(sim_properties['last_DNA_step'])
-    
-    print(DNAfile)
-    
-    last_DNA_complete = os.path.isfile(DNAfile)
-    
-    if not last_DNA_complete:
-        
-        print("Waiting on BRGDNA to complete configuration")
-        
-    DNA_wait = 0
-    
-    while not last_DNA_complete:
-        
-        if DNA_wait>=300:
-            
-            rescueDNA(sim_properties)
-            
-            print('Created Rescue Files')
-            
-            return None
-        
-        last_DNA_complete = os.path.isfile(DNAfile)
-        
-        timepy.sleep(10)
-        
-        DNA_wait = DNA_wait + 10
-        
-    print("Waited seconds: "+str(DNA_wait))
-        
+    """Consume only a completed chromosome worker's coordinate file."""
+    DnaRuntime.waitForLastDna(sim_properties)
     print("Chromosome configuration ready to load")
-        
     return None
 #########################################################################################
 
@@ -230,7 +189,7 @@ def placeNewChromosome(time, lattice, sim_properties, region_dict, ribo_site_dic
     
     DNAfile = workDir + 'dna_monomers_{:d}.bin'.format(sim_properties['last_DNA_step'])
     
-    fileType = DNAfile.split('.')[1] #'bin'
+    fileType = os.path.splitext(DNAfile)[1].lstrip('.') #'bin'
     
     print(fileType)
     
@@ -504,52 +463,13 @@ def moveDnaParticles(sim_properties, lattice, DNA_lattice_coords):
     
 #########################################################################################   
 def runNewChromosome(time, sim_properties):
-    """
-    Inputs:
-    sim_properties - Dictionary of simulation variables and state trackers
-    
-    Returns:
-    Called by:
-    Description:
-    """
-    
-    timestep = int(time/sim_properties['timestep'])
-    
-#     os.system('LAMMPS_NEW_LOAD twistable_BD_OMP')
-    
-#     headDir = sim_properties['head_directory'] + 'external_programs/'
-    
-    headDir = sim_properties['dna_software_directory']
-    workDir = sim_properties['working_directory']+'DNA/'
-    
-    DirectivesFname = workDir + 'chromosome_operations_{:d}.inp'.format(timestep)
-    
-#     DNA_executable = headDir + 'btree_chromo/build/apps/program ' + DirectivesFname
-#     print(DNA_executable)
-    
-#     os.system(DNA_executable)
-
-#     if sim_properties['last_DNA_step'] is not None:
-
-#         LAMMPStraj= workDir + 'chromosome_{:d}.lammpstrj'.format(sim_properties['last_DNA_step'])
-
-#         os.system('rm ' + LAMMPStraj)
-    
-    DNAargs = [headDir + 'btree_chromo/build/apps/btree_chromo', DirectivesFname]
-    
-#     Popen(DNAargs, stdin=None, stdout=None, stderr=None)
-
-    Popen(DNAargs, stdin=None, stdout=subprocess.DEVNULL, stderr=None)
-    
-    lastStep = sim_properties['last_DNA_step']
-    
-    sim_properties['last_last_DNA_step'] = lastStep
-    
+    """Launch and retain the next DNA worker; synchronize at the next DNA hook."""
+    timestep = int(time / sim_properties['timestep'])
+    directives = sim_properties['working_directory'] + 'DNA/chromosome_operations_{:d}.inp'.format(timestep)
+    DnaRuntime.runBtree(sim_properties, directives)
+    sim_properties['last_last_DNA_step'] = sim_properties['last_DNA_step']
     sim_properties['last_DNA_step'] = timestep
-    
-    print("Set next DNA configuration to run in background")
-    
-    return
+    return None
 #########################################################################################
 
     
@@ -646,7 +566,7 @@ def writeChromosomeInputFile(time, sim_properties, updateRegions):
         f.write('prepare_simulator:' + workDir + 'log_{:d}.log\n'.format(timestep))
         f.write('simulator_set_prng_seed:{:d}\n'.format(rng_number))
         f.write('simulator_set_nProc:{:d}\n'.format(processor_number))
-        f.write('simulator_set_DNA_model:' + headDir + 'btree_chromo/LAMMPS_DNA_model_kk\n')
+        f.write('simulator_set_DNA_model:' + str(DnaRuntime.btreeDirectory(sim_properties) / 'LAMMPS_DNA_model_kk') + '\n')
 #         f.write('simulator_set_output_details:' + workDir + ',chromosome_{:d}\n'.format(timestep))
         f.write('simulator_set_output_details:' + workDir + ',chromosome\n'.format(timestep))
 
@@ -1068,7 +988,7 @@ def writeDivisionChromosomeInputFile(time, sim_properties):
         f.write('prepare_simulator:' + workDir + 'log_{:d}.log\n'.format(timestep))
         f.write('simulator_set_prng_seed:{:d}\n'.format(rng_number))
         f.write('simulator_set_nProc:{:d}\n'.format(processor_number))
-        f.write('simulator_set_DNA_model:' + headDir + 'btree_chromo/LAMMPS_DNA_model_kk\n')
+        f.write('simulator_set_DNA_model:' + str(DnaRuntime.btreeDirectory(sim_properties) / 'LAMMPS_DNA_model_kk') + '\n')
 
         f.write('simulator_set_output_details:' + workDir + ',chromosome\n'.format(timestep))
 
@@ -1158,31 +1078,9 @@ def writeDivisionChromosomeInputFile(time, sim_properties):
 
 #########################################################################################
 def runDivChromosome(time, sim_properties):
-    """
-    Inputs:
-    Returns:
-    Called by:
-    Description:
-    """
-    
-    timestep = int(time/sim_properties['timestep'])
-    
-#     timestep = sim_properties['timestep']
-    
-#     os.system('LAMMPS_NEW_LOAD twistable_BD_OMP')
-    
-    headDir = sim_properties['dna_software_directory']
-    workDir = sim_properties['working_directory']+'DNA/'
-    
-#     DirectivesFname = workDir + 'chromosome_operations_{:d}.inp'.format(timestep)
-
-    DirectivesFname = workDir + 'chromosome_operations_{:d}.inp'.format(timestep)
-    
-    DNA_executable = headDir + 'btree_chromo/build/apps/btree_chromo ' + DirectivesFname
-    print(DNA_executable)
-    
-    os.system(DNA_executable)
-    
+    timestep = int(time / sim_properties['timestep'])
+    directives = sim_properties['working_directory'] + 'DNA/chromosome_operations_{:d}.inp'.format(timestep)
+    DnaRuntime.runBtree(sim_properties, directives, background=False)
     return None
 #########################################################################################
 
@@ -1461,11 +1359,13 @@ def partitionChromosomes(sim_properties):
     # Run C1
     DirectivesFname = writePartitioningChromosomeInputFile(sim_properties, 'L', fnameL, max_r_CL)
     runPartitioningChromosome(DirectivesFname, sim_properties)
+    DnaRuntime.waitForDna(sim_properties, workDir + 'dna_monomers_L.bin', workDir + 'chromo_topo_L.dat')
 #     runChromosome(DirectivesFname, softwareDirectory, working_directory)
     
     # Run C2
     DirectivesFname = writePartitioningChromosomeInputFile(sim_properties, 'R', fnameR, max_r_CR)
     runPartitioningChromosome(DirectivesFname, sim_properties)
+    DnaRuntime.waitForDna(sim_properties, workDir + 'dna_monomers_R.bin', workDir + 'chromo_topo_R.dat')
 #     runChromosome(DirectivesFname, softwareDirectory, working_directory)
     
     # Combine results of running individual chromosomes into a single configuration
@@ -1553,7 +1453,7 @@ def writePartitioningChromosomeInputFile(sim_properties, chromoID, PrevDnaBinFna
         f.write('prepare_simulator:' + workDir + 'log_{}_{:d}.log\n'.format(chromoID,sim_properties['last_DNA_step']))
         f.write('simulator_set_prng_seed:{:d}\n'.format(69))
         f.write('simulator_set_nProc:8\n')
-        f.write('simulator_set_DNA_model:' + headDir + 'btree_chromo/LAMMPS_DNA_model_kk\n')
+        f.write('simulator_set_DNA_model:' + str(DnaRuntime.btreeDirectory(sim_properties) / 'LAMMPS_DNA_model_kk') + '\n')
         f.write('simulator_set_output_details:' + workDir + ',partitioning_{}\n'.format(chromoID))
         f.write('simulator_set_delta_t:1.0E+5\n')
         
@@ -1672,24 +1572,6 @@ def writePartitioningChromosomeInputFile(sim_properties, chromoID, PrevDnaBinFna
 
 #########################################################################################
 def runPartitioningChromosome(DirectivesFname, sim_properties):
-    """
-    Inputs:
-    Returns:
-    Called by:
-    Description:
-    """
-    
-    headDir = sim_properties['dna_software_directory']
-    workDir = sim_properties['working_directory']+'DNA/'
-    
-#     DirectivesFname = workDir + 'chromosome_operations_{:d}.inp'.format(timestep)
-
-#     DirectivesFname = workDir + 'chromosome_operations_{:d}.inp'.format(timestep)
-    
-    DNA_executable = headDir + 'btree_chromo/build/apps/btree_chromo ' + DirectivesFname
-    print(DNA_executable)
-    
-    os.system(DNA_executable)
-    
+    DnaRuntime.runBtree(sim_properties, DirectivesFname, background=False)
     return None
 #########################################################################################

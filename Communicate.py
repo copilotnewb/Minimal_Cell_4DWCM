@@ -13,16 +13,12 @@ import os
 import json
 import pickle
 
-import pySTDLM.PostProcessing as PP
-
-import time as timepy
-
 from LatticeFunctions import *
 
 from scipy.optimize import fsolve
 from scipy.optimize import least_squares
 
-import MC_CME as MCCME
+from CmeResults import readFinalCounts
 
 #########################################################################################
 def updateCountsRDME(RDMEsim, sim_properties, lattice):
@@ -53,63 +49,16 @@ def updateCountsRDME(RDMEsim, sim_properties, lattice):
 
 #########################################################################################
 def updateCountsCME(sim_properties):
-    """
-    Inputs:
-    
-    sim_properties - Dictionary of simulation variables and state trackers
-    
-    Returns:
-    Called by:
-    Description:
-    """
-    
-    csimFolder = sim_properties['working_directory']+'CME/'
-    CSIMfilename= csimFolder + 'cmeSim.%d.lm'%np.rint(sim_properties['time'])
-    
-#     print(CMEspecies)
-
-    bad_cme=False
-    while not(bad_cme):
-        try: #TAB CHANGE
-            CMEsim=PP.openLMFile(CSIMfilename)
-            CMEspecies = PP.getSpecies(CMEsim)
-            count_trace = PP.getSpecieTrace(CMEsim, CMEspecies[0])
-            PP.closeLMFile(CMEsim)
-            bad_cme=True
-        except:
-            timepy.sleep(30)
-            print('Error in CME run, re-building and re-running simulations')
-            MCCME.runGCME(sim_properties)
-
-            
-    CMEsim=PP.openLMFile(CSIMfilename)
-    
-    CMEspecies = PP.getSpecies(CMEsim)
-    
-    for specie in CMEspecies:
-        
-        count_trace = PP.getSpecieTrace(CMEsim, specie)
-
-        count = count_trace[-1]
-        
+    """Read all final counts once, after the checked CME worker has finished."""
+    csimFolder = sim_properties['working_directory'] + 'CME/'
+    CSIMfilename = csimFolder + 'cmeSim.%d.lm' % np.rint(sim_properties['time'])
+    species, counts = readFinalCounts(CSIMfilename)
+    for specie, count in zip(species, counts):
         if specie in sim_properties['cme_state_tracker']:
-            
-#             print('Updating specie: ', specie)
-            
             sim_properties['cme_state_tracker'][specie] = sim_properties['counts'][specie] - count
-
         sim_properties['counts'][specie] = count
-
-    PP.closeLMFile(CMEsim)
-    
+    os.remove(CSIMfilename)
     print('Updated particle counts from global CME')
-    
-    try:
-        os.remove(CSIMfilename)
-        print('Removed gCME File')
-    except:
-        print('Nothing to delete')
-    
     return None
 #########################################################################################
 
@@ -590,6 +539,12 @@ def calculateTranslationCosts(sim_properties, lattice):
     "H":"HIS_cost", "I":"ILE_cost", "L":"LEU_cost", "K":"LYS_cost", "M":"MET_cost", "F":"PHE_cost", 
     "P":"PRO_cost", "S":"SER_cost", "T":"THR_cost", "W":"TRP_cost", "Y":"TYR_cost", "V":"VAL_cost"}
 #     ,"*":"Stop_Codon"}
+
+    cost_ids = [sim_properties['name_to_index']['P_' + tag.split('_')[1] + '_TC']
+                for tag, gene in genome.items()
+                if gene['Type'] == 'protein'
+                and sim_properties['counts']['P_' + tag.split('_')[1] + '_TC'] > 0]
+    cost_locations = particleLocations(plattice, cost_ids)
     
     for locusTag, locusDict in genome.items():
         
@@ -603,7 +558,7 @@ def calculateTranslationCosts(sim_properties, lattice):
 
                 TCPidx = sim_properties['name_to_index'][translatCostParticle]
 
-                TCPcoords = np.argwhere(plattice==TCPidx)
+                TCPcoords = cost_locations[TCPidx]
 
                 newPtns = len(TCPcoords)
 
@@ -678,6 +633,12 @@ def calculateDegradationCosts(sim_properties, lattice):
     plattice = lattice.getParticleLatticeView()
     
     genome = sim_properties['genome']
+
+    cost_ids = [sim_properties['name_to_index']['DT_' + tag.split('_')[1]]
+                for tag, gene in genome.items()
+                if gene['Type'] == 'protein'
+                and sim_properties['counts']['DT_' + tag.split('_')[1]] > 0]
+    cost_locations = particleLocations(plattice, cost_ids)
     
     for locusTag, locusDict in genome.items():
         
@@ -691,7 +652,7 @@ def calculateDegradationCosts(sim_properties, lattice):
 
                 DTidx = sim_properties['name_to_index'][degCostParticle]
 
-                DTcoords = np.argwhere(plattice==DTidx)
+                DTcoords = cost_locations[DTidx]
 
                 mRNAdegraded = len(DTcoords)
                 

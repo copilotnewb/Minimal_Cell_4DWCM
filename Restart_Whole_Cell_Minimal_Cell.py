@@ -1,6 +1,8 @@
 
 import argparse
 import os
+import DnaRuntime
+import RdmeResults
 
 #########################################################################################
 ap = argparse.ArgumentParser()
@@ -20,7 +22,14 @@ ap.add_argument("-wd", "--workingDirectory", default=None)
 
 ap.add_argument("-mh", "--maximumHours", type=float, default=None)
 
+ap.add_argument('--odeBackend', choices=('python', 'cython'), default='python',
+                help='Metabolic RHS backend; cython compiles and caches a parameterized functor.')
+ap.add_argument('--odeCacheDirectory', default=None,
+                help='Optional shared directory for compiled ODE modules (default: output directory/ode_cache).')
+DnaRuntime.addArguments(ap)
 args = ap.parse_args()
+runtime_settings = {}
+DnaRuntime.configure(runtime_settings, args)
 #########################################################################################
 
 
@@ -106,6 +115,10 @@ sim_properties_file = workingDirectory + 'sim_properties.pkl'
 
 #########################################################################################
 sim, sim_properties = MCRDME.initSimRestart(sim_properties_file, workingDirectoryName, headDirectory, totalTime=totalTime)
+sim_properties.update(runtime_settings)
+sim_properties['ode_backend'] = args.odeBackend
+sim_properties['ode_cache_directory'] = (args.odeCacheDirectory or
+                                         os.path.join(sim_properties['working_directory'], 'ode_cache'))
 
 restart_time = int(round(sim_properties['time']))
 backup_sim_properties = workingDirectory + 'sim_properties_{:d}.pkl'.format(restart_time)
@@ -139,6 +152,11 @@ solver = Solver(sim, sim_properties, region_dict, ribo_site_dict, termination_ti
 
 sim.finalize()
 
-sim.run(solver=solver, cudaDevices=[int(args.cudaDevices)])
+try:
+    sim.run(solver=solver, cudaDevices=[int(args.cudaDevices)])
+finally:
+    # Finish any chromosome referenced by the latest checkpoint before exit.
+    DnaRuntime.waitForLastDna(sim_properties)
+RdmeResults.validateCompletion(sim.filename)
 #########################################################################################
 

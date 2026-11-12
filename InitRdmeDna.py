@@ -7,6 +7,8 @@ Create an initial configuration for a single chromsome using sc_chain_generation
 import numpy as np
 
 import os
+import subprocess
+import DnaRuntime
 
 from scipy import spatial
 
@@ -60,11 +62,13 @@ def runNewChromosome(sim_properties):
     
     log_fname = sim_properties['working_directory'] + 'log_init.log'
     
-    DNA_executable = sim_properties['dna_software_directory'] + 'sc_chain_generation/fortran/gen_sc_chain --i_f=%s --o_d=%s --o_l=%s --s=10 --l=%s --n_t=8 --bin --xyz' % (input_fname, sim_properties['working_directory']+'DNA/', 'Syn3A_chromosome_init', log_fname)
-    print(DNA_executable)
-    
-    os.system(DNA_executable)
-    
+    command = [str(DnaRuntime.chainExecutable(sim_properties)),
+               '--i_f=' + input_fname,
+               '--o_d=' + sim_properties['working_directory'] + 'DNA/',
+               '--o_l=Syn3A_chromosome_init', '--s=10', '--l=' + log_fname,
+               '--n_t=8', '--bin', '--xyz']
+    subprocess.run(command, check=True)
+
     return None
 #########################################################################################
 

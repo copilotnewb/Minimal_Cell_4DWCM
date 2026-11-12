@@ -16,6 +16,17 @@ step = 0.1 # s
 atol = 1e-6 # tolerance
 rtol = 1e-6 # tolerance
 
+
+def buildSolver(model, backend='python', cache_dir=None):
+    """Select the reference Python callback or the opt-in cached Cython one."""
+    if backend == 'python':
+        return noCythonSetSolver(model)
+    if backend == 'cython':
+        from odecell.compiled import buildSolver as buildCompiledSolver
+        return buildCompiledSolver(model, cache_dir=cache_dir)
+    raise ValueError("Unknown ODE backend: {!r}".format(backend))
+
+
 #########################################################################################
 def setSolver(model):
     """
@@ -142,22 +153,28 @@ def runODE(y0, solv, model):
 #     if (lsodaBool):
     integrator.set_integrator("lsoda")
 
-    integrator.set_initial_value(model.getInitVals())
+    initial_values = model.getInitVals()
+    integrator.set_initial_value(initial_values)
 
     ### With fixed timestepping
     step = 0.01
     totalTime = 1.0
-    results = np.empty((0,len(model.getInitVals())), float)
+    # Keep the existing target times (including their floating-point rounding)
+    # while avoiding a copy of every prior sample at each output step. The spare
+    # row covers a final step caused by accumulated floating-point error.
+    results = np.empty((int(np.ceil(totalTime / step)) + 1, len(initial_values)), float)
+    sample_count = 0
 
     while integrator.successful() and integrator.t < totalTime:
         currConcentration = integrator.integrate(integrator.t + step)
 #         print(integrator.t)
         # Silence integrator output for now
         #print(integrator.t, currConcentration)
-        results = np.append(results, [np.asarray(currConcentration)], axis=0 )
+        results[sample_count] = currConcentration
+        sample_count += 1
 
 #     results = results[-1,:]
 
     # Return only the last timestep for the results, this is all thats really needed
-    return results
+    return results[:sample_count]
 #########################################################################################
